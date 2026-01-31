@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Search Term Blocker — Options</title>
+    <style>
+      body {
+        font:
+          14px/1.4 system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Arial;
+        margin: 18px;
+        max-width: 880px;
+      }
+      .row {
+        margin: 12px 0;
+      }
+      textarea {
+        width: 100%;
+        height: 180px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+      }
+      fieldset {
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 8px;
+      }
+      .inline {
+        display: inline-flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .status {
+        margin-left: 10px;
+      }
+      button {
+        padding: 8px 12px;
+      }
+      .muted {
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Search Term Blocker</h2>
+
+    <div class="row">
+      <label>
+        <input type="checkbox" id="enabled" />
+        Enabled
+      </label>
+    </div>
+
+    <fieldset class="row">
+      <legend>Blocked terms</legend>
+      <div class="muted">
+        One term per line (or comma-separated). Matching is case-insensitive.
+      </div>
+      <div class="row">
+        <textarea id="terms" spellcheck="false"></textarea>
+      </div>
+    </fieldset>
+
+    <fieldset class="row">
+      <legend>Search engines</legend>
+      <div class="inline">
+        <label><input type="checkbox" id="google" /> Google</label>
+        <label><input type="checkbox" id="bing" /> Bing</label>
+        <label><input type="checkbox" id="duckduckgo" /> DuckDuckGo</label>
+        <label><input type="checkbox" id="brave" /> Brave Search</label>
+      </div>
+    </fieldset>
+
+    <fieldset class="row">
+      <legend>When blocked</legend>
+      <div class="inline">
+        <label
+          ><input type="radio" name="behavior" value="close" /> Close tab</label
+        >
+        <label
+          ><input type="radio" name="behavior" value="newtab" /> Replace with
+          New Tab</label
+        >
+        <label
+          ><input type="radio" name="behavior" value="blockpage" /> Show blocked
+          page</label
+        >
+      </div>
+    </fieldset>
+
+    <div class="row">
+      <button id="save">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div class="row muted">
+      Tip: If you want this in Incognito too, enable it in chrome://extensions →
+      “Details” → “Allow in Incognito”.
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

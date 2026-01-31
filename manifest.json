@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Search Term Blocker",
+  "version": "1.0.0",
+  "description": "Blocks searches containing configured terms on major search engines.",
+  "permissions": ["declarativeNetRequest", "storage", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "service_worker.js" },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html", "blocked.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "minimum_chrome_version": "111"
+}

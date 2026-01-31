@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Blocked</title>
+    <style>
+      body {
+        font:
+          14px/1.4 system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Arial;
+        margin: 18px;
+      }
+      .box {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 16px;
+        max-width: 760px;
+      }
+      button {
+        padding: 8px 12px;
+        margin-right: 10px;
+      }
+      .muted {
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h2>Search blocked</h2>
+      <p class="muted">This search matched one of your blocked terms.</p>
+      <div>
+        <button id="openOptions">Edit blocked terms</button>
+      </div>
+    </div>
+
+    <script src="blocked.js"></script>
+  </body>
+</html>

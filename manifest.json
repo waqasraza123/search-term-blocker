@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Search Term Blocker",
-  "version": "1.0.0",
-  "description": "Blocks searches containing configured terms on major search engines.",
+  "version": "1.1.0",
+  "description": "Blocks searches and URLs that match your configured rules.",
   "permissions": ["declarativeNetRequest", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "service_worker.js" },

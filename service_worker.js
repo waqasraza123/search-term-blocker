@@ -1,7 +1,8 @@
 const DEFAULTS = Object.freeze({
   enabled: true,
-  behavior: "close", // "close" | "newtab" | "blockpage"
+  behavior: "close",
   blockedTerms: ["news"],
+  blockedUrls: [],
   engines: {
     google: true,
     bing: true,
@@ -9,28 +10,30 @@ const DEFAULTS = Object.freeze({
     brave: true,
   },
   maxTerms: 150,
+  maxUrls: 150,
 });
 
-const BLOCKED_PAGE = "/blocked.html";
+const BLOCKED_PAGE_PATH = "/blocked.html";
+const BLOCKED_PAGE_URL = "blocked.html";
+const RULE_LIMIT_SOFT = 4500;
 
 let updateInProgress = false;
 let updateQueued = false;
 
-function normalizeTerms(input) {
+function normalizeList(input) {
   const raw = Array.isArray(input) ? input.join("\n") : String(input || "");
   const parts = raw
     .split(/[\n,]+/g)
     .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => s.toLowerCase());
+    .filter(Boolean);
 
-  // De-dupe while preserving order
   const seen = new Set();
   const out = [];
-  for (const t of parts) {
-    if (!seen.has(t)) {
-      seen.add(t);
-      out.push(t);
+  for (const p of parts) {
+    const v = p.toLowerCase();
+    if (!seen.has(v)) {
+      seen.add(v);
+      out.push(v);
     }
   }
   return out;
@@ -40,32 +43,23 @@ function escapeRegexLiteral(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Build a RE2-friendly pattern that matches common URL encodings for spaces.
 function buildTermRegex(term) {
   const clean = term.trim().toLowerCase();
   if (!clean) return null;
 
   const hasSpace = /\s/.test(clean);
-
   const literal = escapeRegexLiteral(clean);
   const encoded = escapeRegexLiteral(encodeURIComponent(clean));
   const plusEncoded = escapeRegexLiteral(clean.replace(/\s+/g, "+"));
 
   if (!hasSpace) {
-    // Include both literal and encoded forms (helps non-ascii / special chars).
-    // Most ASCII terms will be identical, but that’s fine.
     if (literal === encoded) return literal;
     return `(?:${literal}|${encoded})`;
   }
 
-  // If term contains spaces, match:
-  // - plus-separated tokens: "world+news"
-  // - %20 separated tokens: "world%20news"
-  // - encodeURIComponent form (usually %20)
   const tokens = clean.split(/\s+/).map(escapeRegexLiteral).filter(Boolean);
   const spaced = tokens.join("(?:\\+|%20)+");
 
-  // Avoid a giant alternation if they’re identical (rare)
   const variants = new Set([spaced, encoded, plusEncoded].filter(Boolean));
   if (variants.size === 1) return [...variants][0];
 
@@ -73,8 +67,6 @@ function buildTermRegex(term) {
 }
 
 function engineBaseRegex(engineKey) {
-  // Match only main search URLs where q= contains the term.
-  // Use a conservative query match: after ?, optionally "...&", then q=VALUE
   switch (engineKey) {
     case "google":
       return String.raw`^https?:\/\/(?:www\.)?google\.[^\/]+\/search\?(?:[^#]*&)?q=[^#&]*__TERM__[^#&]*`;
@@ -89,15 +81,67 @@ function engineBaseRegex(engineKey) {
   }
 }
 
+function normalizeUrlInput(line) {
+  let s = String(line || "")
+    .trim()
+    .toLowerCase();
+  if (!s) return null;
+  if (/\s/.test(s)) return null;
+
+  s = s.replace(/^view-source:/, "");
+  s = s.replace(/^https?:\/\//, "");
+  s = s.replace(/^\/\//, "");
+  s = s.split("#")[0];
+
+  const firstSlash = s.indexOf("/");
+  const firstQ = s.indexOf("?");
+  let cut = -1;
+  if (firstSlash >= 0 && firstQ >= 0) cut = Math.min(firstSlash, firstQ);
+  else cut = Math.max(firstSlash, firstQ);
+
+  let host = cut >= 0 ? s.slice(0, cut) : s;
+  let rest = cut >= 0 ? s.slice(cut) : "";
+
+  host = host.replace(/^www\./, "");
+  host = host.replace(/\.+$/, "");
+  if (!host) return null;
+
+  if (rest === "/" || rest === "/.") rest = "";
+  if (rest.endsWith("/")) rest = rest.slice(0, -1);
+
+  if (rest && !rest.startsWith("/") && !rest.startsWith("?")) rest = `/${rest}`;
+
+  return { host, rest };
+}
+
+function buildBlockedUrlRegex(host, rest) {
+  const hostEsc = escapeRegexLiteral(host);
+  if (!rest) {
+    return `^https?:\\/\\/(?:www\\.)?${hostEsc}(?:$|[\\/?#])`;
+  }
+  const restEsc = escapeRegexLiteral(rest);
+  return `^https?:\\/\\/(?:www\\.)?${hostEsc}${restEsc}`;
+}
+
 function buildRules(config) {
   const enabledEngines = Object.entries(config.engines || {})
     .filter(([, v]) => v === true)
     .map(([k]) => k);
 
-  const terms = normalizeTerms(config.blockedTerms).slice(
+  const terms = normalizeList(config.blockedTerms).slice(
     0,
     Number(config.maxTerms) || DEFAULTS.maxTerms,
   );
+  const urlsRaw = normalizeList(config.blockedUrls).slice(
+    0,
+    Number(config.maxUrls) || DEFAULTS.maxUrls,
+  );
+
+  const normalizedUrls = [];
+  for (const u of urlsRaw) {
+    const parsed = normalizeUrlInput(u);
+    if (parsed) normalizedUrls.push(parsed);
+  }
 
   const rules = [];
   let id = 1;
@@ -117,7 +161,7 @@ function buildRules(config) {
         priority: 1,
         action: {
           type: "redirect",
-          redirect: { extensionPath: BLOCKED_PAGE },
+          redirect: { extensionPath: BLOCKED_PAGE_PATH },
         },
         condition: {
           regexFilter,
@@ -126,9 +170,28 @@ function buildRules(config) {
         },
       });
 
-      // Safety: Chrome caps dynamic rules; stop before hitting limits.
-      if (rules.length >= 4500) return rules;
+      if (rules.length >= RULE_LIMIT_SOFT) return rules;
     }
+  }
+
+  for (const { host, rest } of normalizedUrls) {
+    const regexFilter = buildBlockedUrlRegex(host, rest);
+
+    rules.push({
+      id: id++,
+      priority: 1,
+      action: {
+        type: "redirect",
+        redirect: { extensionPath: BLOCKED_PAGE_PATH },
+      },
+      condition: {
+        regexFilter,
+        isUrlFilterCaseSensitive: false,
+        resourceTypes: ["main_frame"],
+      },
+    });
+
+    if (rules.length >= RULE_LIMIT_SOFT) return rules;
   }
 
   return rules;
@@ -137,7 +200,7 @@ function buildRules(config) {
 async function getConfig() {
   const stored = await chrome.storage.sync.get(DEFAULTS);
 
-  const cfg = {
+  return {
     enabled: Boolean(stored.enabled),
     behavior: ["close", "newtab", "blockpage"].includes(stored.behavior)
       ? stored.behavior
@@ -145,6 +208,9 @@ async function getConfig() {
     blockedTerms: Array.isArray(stored.blockedTerms)
       ? stored.blockedTerms
       : DEFAULTS.blockedTerms,
+    blockedUrls: Array.isArray(stored.blockedUrls)
+      ? stored.blockedUrls
+      : DEFAULTS.blockedUrls,
     engines:
       typeof stored.engines === "object" && stored.engines
         ? stored.engines
@@ -152,9 +218,10 @@ async function getConfig() {
     maxTerms: Number.isFinite(stored.maxTerms)
       ? stored.maxTerms
       : DEFAULTS.maxTerms,
+    maxUrls: Number.isFinite(stored.maxUrls)
+      ? stored.maxUrls
+      : DEFAULTS.maxUrls,
   };
-
-  return cfg;
 }
 
 async function removeAllDynamicRules() {
@@ -176,15 +243,14 @@ async function applyRules() {
 
   const newRules = buildRules(config);
   const existing = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeRuleIds = existing.map((r) => r.id);
 
   await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds,
+    removeRuleIds: existing.map((r) => r.id),
     addRules: newRules,
   });
 }
 
-async function syncRulesDebounced() {
+async function syncRules() {
   if (updateInProgress) {
     updateQueued = true;
     return;
@@ -194,45 +260,47 @@ async function syncRulesDebounced() {
   try {
     await applyRules();
   } catch (err) {
-    // Don’t crash the service worker on bad configs.
     console.error("Failed to apply rules:", err);
   } finally {
     updateInProgress = false;
     if (updateQueued) {
       updateQueued = false;
-      // Run once more to pick up the latest changes.
-      syncRulesDebounced();
+      syncRules();
     }
   }
 }
 
-// Close/redirect behavior after DNR redirects to blocked.html
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   if (!changeInfo.url) return;
 
-  const blockedUrl = chrome.runtime.getURL("blocked.html"); // no leading slash here
+  const blockedUrl = chrome.runtime.getURL(BLOCKED_PAGE_URL);
   if (!changeInfo.url.startsWith(blockedUrl)) return;
 
   const config = await getConfig();
   if (!config.enabled) return;
 
-  if (config.behavior === "close") chrome.tabs.remove(tabId);
-  else if (config.behavior === "newtab")
+  if (config.behavior === "close") {
+    chrome.tabs.remove(tabId);
+    return;
+  }
+
+  if (config.behavior === "newtab") {
     chrome.tabs.update(tabId, { url: "chrome://newtab" });
+  }
 });
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === "install") {
     await chrome.storage.sync.set(DEFAULTS);
   }
-  syncRulesDebounced();
+  syncRules();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  syncRulesDebounced();
+  syncRules();
 });
 
 chrome.storage.onChanged.addListener((_changes, areaName) => {
   if (areaName !== "sync") return;
-  syncRulesDebounced();
+  syncRules();
 });

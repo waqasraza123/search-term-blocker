@@ -2,15 +2,17 @@ const DEFAULTS = {
   enabled: true,
   behavior: "close",
   blockedTerms: ["news"],
+  blockedUrls: [],
   engines: { google: true, bing: true, duckduckgo: true, brave: true },
   maxTerms: 150,
+  maxUrls: 150,
 };
 
 function $(id) {
   return document.getElementById(id);
 }
 
-function normalizeTerms(text) {
+function splitList(text) {
   return String(text || "")
     .split(/[\n,]+/g)
     .map((s) => s.trim())
@@ -22,6 +24,7 @@ async function load() {
 
   $("enabled").checked = Boolean(cfg.enabled);
   $("terms").value = (cfg.blockedTerms || []).join("\n");
+  $("urls").value = (cfg.blockedUrls || []).join("\n");
 
   $("google").checked = Boolean(cfg.engines?.google);
   $("bing").checked = Boolean(cfg.engines?.bing);
@@ -43,9 +46,16 @@ async function save() {
   const behaviorEl = document.querySelector('input[name="behavior"]:checked');
   const behavior = behaviorEl ? behaviorEl.value : DEFAULTS.behavior;
 
-  const blockedTerms = normalizeTerms($("terms").value);
+  const blockedTerms = splitList($("terms").value);
+  const blockedUrls = splitList($("urls").value);
+
   if (blockedTerms.length > DEFAULTS.maxTerms) {
     status.textContent = `Too many terms (max ${DEFAULTS.maxTerms}).`;
+    return;
+  }
+
+  if (blockedUrls.length > DEFAULTS.maxUrls) {
+    status.textContent = `Too many URLs (max ${DEFAULTS.maxUrls}).`;
     return;
   }
 
@@ -60,6 +70,7 @@ async function save() {
     enabled: $("enabled").checked,
     behavior,
     blockedTerms,
+    blockedUrls,
     engines,
   });
 

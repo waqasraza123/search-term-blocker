@@ -1,14 +1,11 @@
+const ext = globalThis.browser ?? globalThis.chrome;
+
 const DEFAULTS = Object.freeze({
   enabled: true,
   behavior: "close",
   blockedTerms: ["news"],
   blockedUrls: [],
-  engines: {
-    google: true,
-    bing: true,
-    duckduckgo: true,
-    brave: true,
-  },
+  engines: { google: true, bing: true, duckduckgo: true, brave: true },
   maxTerms: 150,
   maxUrls: 150,
 });
@@ -108,7 +105,6 @@ function normalizeUrlInput(line) {
 
   if (rest === "/" || rest === "/.") rest = "";
   if (rest.endsWith("/")) rest = rest.slice(0, -1);
-
   if (rest && !rest.startsWith("/") && !rest.startsWith("?")) rest = `/${rest}`;
 
   return { host, rest };
@@ -116,9 +112,7 @@ function normalizeUrlInput(line) {
 
 function buildBlockedUrlRegex(host, rest) {
   const hostEsc = escapeRegexLiteral(host);
-  if (!rest) {
-    return `^https?:\\/\\/(?:www\\.)?${hostEsc}(?:$|[\\/?#])`;
-  }
+  if (!rest) return `^https?:\\/\\/(?:www\\.)?${hostEsc}(?:$|[\\/?#])`;
   const restEsc = escapeRegexLiteral(rest);
   return `^https?:\\/\\/(?:www\\.)?${hostEsc}${restEsc}`;
 }
@@ -127,7 +121,6 @@ function buildRules(config) {
   const enabledEngines = Object.entries(config.engines || {})
     .filter(([, v]) => v === true)
     .map(([k]) => k);
-
   const terms = normalizeList(config.blockedTerms).slice(
     0,
     Number(config.maxTerms) || DEFAULTS.maxTerms,
@@ -154,8 +147,6 @@ function buildRules(config) {
       const termRegex = buildTermRegex(term);
       if (!termRegex) continue;
 
-      const regexFilter = base.replace("__TERM__", termRegex);
-
       rules.push({
         id: id++,
         priority: 1,
@@ -164,7 +155,7 @@ function buildRules(config) {
           redirect: { extensionPath: BLOCKED_PAGE_PATH },
         },
         condition: {
-          regexFilter,
+          regexFilter: base.replace("__TERM__", termRegex),
           isUrlFilterCaseSensitive: false,
           resourceTypes: ["main_frame"],
         },
@@ -175,8 +166,6 @@ function buildRules(config) {
   }
 
   for (const { host, rest } of normalizedUrls) {
-    const regexFilter = buildBlockedUrlRegex(host, rest);
-
     rules.push({
       id: id++,
       priority: 1,
@@ -185,7 +174,7 @@ function buildRules(config) {
         redirect: { extensionPath: BLOCKED_PAGE_PATH },
       },
       condition: {
-        regexFilter,
+        regexFilter: buildBlockedUrlRegex(host, rest),
         isUrlFilterCaseSensitive: false,
         resourceTypes: ["main_frame"],
       },
@@ -198,7 +187,7 @@ function buildRules(config) {
 }
 
 async function getConfig() {
-  const stored = await chrome.storage.sync.get(DEFAULTS);
+  const stored = await ext.storage.sync.get(DEFAULTS);
 
   return {
     enabled: Boolean(stored.enabled),
@@ -225,15 +214,17 @@ async function getConfig() {
 }
 
 async function removeAllDynamicRules() {
-  const existing = await chrome.declarativeNetRequest.getDynamicRules();
+  if (!ext.declarativeNetRequest?.getDynamicRules) return;
+  const existing = await ext.declarativeNetRequest.getDynamicRules();
   if (!existing.length) return;
-
-  await chrome.declarativeNetRequest.updateDynamicRules({
+  await ext.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: existing.map((r) => r.id),
   });
 }
 
 async function applyRules() {
+  if (!ext.declarativeNetRequest?.updateDynamicRules) return;
+
   const config = await getConfig();
 
   if (!config.enabled) {
@@ -242,9 +233,9 @@ async function applyRules() {
   }
 
   const newRules = buildRules(config);
-  const existing = await chrome.declarativeNetRequest.getDynamicRules();
+  const existing = await ext.declarativeNetRequest.getDynamicRules();
 
-  await chrome.declarativeNetRequest.updateDynamicRules({
+  await ext.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: existing.map((r) => r.id),
     addRules: newRules,
   });
@@ -270,37 +261,35 @@ async function syncRules() {
   }
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+ext.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   if (!changeInfo.url) return;
 
-  const blockedUrl = chrome.runtime.getURL(BLOCKED_PAGE_URL);
+  const blockedUrl = ext.runtime.getURL(BLOCKED_PAGE_URL);
   if (!changeInfo.url.startsWith(blockedUrl)) return;
 
   const config = await getConfig();
   if (!config.enabled) return;
 
   if (config.behavior === "close") {
-    chrome.tabs.remove(tabId);
+    ext.tabs.remove(tabId);
     return;
   }
 
   if (config.behavior === "newtab") {
-    chrome.tabs.update(tabId, { url: "chrome://newtab" });
+    ext.tabs.update(tabId, { url: "chrome://newtab" });
   }
 });
 
-chrome.runtime.onInstalled.addListener(async (details) => {
-  if (details.reason === "install") {
-    await chrome.storage.sync.set(DEFAULTS);
-  }
+ext.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === "install") await ext.storage.sync.set(DEFAULTS);
   syncRules();
 });
 
-chrome.runtime.onStartup.addListener(() => {
+ext.runtime.onStartup.addListener(() => {
   syncRules();
 });
 
-chrome.storage.onChanged.addListener((_changes, areaName) => {
+ext.storage.onChanged.addListener((_changes, areaName) => {
   if (areaName !== "sync") return;
   syncRules();
 });

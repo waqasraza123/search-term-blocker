@@ -24,6 +24,20 @@ It blocks searches that match your terms and can also block specific websites or
 - DuckDuckGo
 - Brave Search
 
+## Install (Firefox, permanent)
+
+1. Build a ZIP with manifest.json at the archive root: `cd src && zip -r ../search-term-blocker.zip .`
+2. Sign in to AMO Developer Hub: https://addons.mozilla.org/developers/
+3. Click Submit a New Add-on
+4. Choose self-distribution / unlisted (host it on your own)
+5. Upload `search-term-blocker.zip` and complete submission
+6. Open your add-on page and download the signed `.xpi` (Manage Status & Versions)
+7. In Firefox, open `about:addons`
+8. Go to the Extensions section
+9. Click the gear icon and choose Install Add-on From File
+10. Select the signed `.xpi` and approve the install prompt
+11. More info: https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/ https://extensionworkshop.com/documentation/publish/package-your-extension/ https://support.mozilla.org/en-US/kb/find-and-install-add-ons-add-features-to-firefox
+
 ## Install (Developer Mode)
 
 1. Clone this repo

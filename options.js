@@ -1,3 +1,5 @@
+const ext = globalThis.browser ?? globalThis.chrome;
+
 const DEFAULTS = {
   enabled: true,
   behavior: "close",
@@ -20,7 +22,7 @@ function splitList(text) {
 }
 
 async function load() {
-  const cfg = await chrome.storage.sync.get(DEFAULTS);
+  const cfg = await ext.storage.sync.get(DEFAULTS);
 
   $("enabled").checked = Boolean(cfg.enabled);
   $("terms").value = (cfg.blockedTerms || []).join("\n");
@@ -66,7 +68,7 @@ async function save() {
     brave: $("brave").checked,
   };
 
-  await chrome.storage.sync.set({
+  await ext.storage.sync.set({
     enabled: $("enabled").checked,
     behavior,
     blockedTerms,

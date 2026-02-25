@@ -1,3 +1,5 @@
+const ext = globalThis.browser ?? globalThis.chrome;
+
 document.getElementById("openOptions").addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
+  ext.runtime.openOptionsPage();
 });

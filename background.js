@@ -136,7 +136,6 @@ async function getConfigCached() {
       throw e;
     });
   }
-
   return cache.p;
 }
 
@@ -222,28 +221,23 @@ async function enforce(tabId, urlStr) {
     return;
   }
 
-  const dest = blockedUrl + "?src=" + encodeURIComponent(urlStr);
-  ext.tabs.update(tabId, { url: dest });
-}
-
-if (ext.webNavigation?.onBeforeNavigate) {
-  ext.webNavigation.onBeforeNavigate.addListener((details) => {
-    if (details.frameId !== 0) return;
-    if (!details.url) return;
-    enforce(details.tabId, details.url);
+  ext.tabs.update(tabId, {
+    url: blockedUrl + "?src=" + encodeURIComponent(urlStr),
   });
 }
 
-if (ext.tabs?.onUpdated) {
-  ext.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (!changeInfo.url) return;
-    enforce(tabId, changeInfo.url);
-  });
-}
+ext.webNavigation.onBeforeNavigate.addListener((details) => {
+  if (details.frameId !== 0) return;
+  if (!details.url) return;
+  enforce(details.tabId, details.url);
+});
 
-if (ext.storage?.onChanged) {
-  ext.storage.onChanged.addListener((_changes, areaName) => {
-    if (areaName !== "sync") return;
-    cache = { cfg: null, compiled: null, ts: 0, p: null };
-  });
-}
+ext.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+  enforce(tabId, changeInfo.url);
+});
+
+ext.storage.onChanged.addListener((_changes, areaName) => {
+  if (areaName !== "sync") return;
+  cache = { cfg: null, compiled: null, ts: 0, p: null };
+});

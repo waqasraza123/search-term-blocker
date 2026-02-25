@@ -1,7 +1,11 @@
-# Search Term Blocker (Chrome Extension)
+# Search Term Blocker (Browser Extension)
 
 A small Manifest V3 Chrome extension I made for myself to stop spiraling into searching for news.
 It blocks searches that match your terms and can also block specific websites or URL paths, then it closes the tab, opens a new tab, or shows a blocked page.
+
+## Screenshots
+
+![screenshot 1](image.png)
 
 ## What it does
 

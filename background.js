@@ -2,6 +2,7 @@ const ext = globalThis.browser ?? globalThis.chrome;
 
 const DEFAULTS = Object.freeze({
   enabled: true,
+  hideVideos: false,
   behavior: "close",
   blockedTerms: ["news"],
   blockedUrls: [],
@@ -93,19 +94,31 @@ function compile(cfg) {
   };
 }
 
+function storageGet(keys) {
+  try {
+    const r = ext.storage.sync.get(keys);
+    if (r && typeof r.then === "function") return r;
+  } catch {}
+  return new Promise((resolve, reject) => {
+    ext.storage.sync.get(keys, (res) => {
+      const err = ext.runtime?.lastError;
+      if (err) reject(new Error(err.message || String(err)));
+      else resolve(res);
+    });
+  });
+}
+
 async function getConfigFresh() {
-  const stored = await ext.storage.sync.get(DEFAULTS);
+  const stored = await storageGet(DEFAULTS);
   return {
     enabled: Boolean(stored.enabled),
     behavior: ["close", "newtab", "blockpage"].includes(stored.behavior)
       ? stored.behavior
-      : DEFAULTS.behavior,
+      : "close",
     blockedTerms: Array.isArray(stored.blockedTerms)
       ? stored.blockedTerms
-      : DEFAULTS.blockedTerms,
-    blockedUrls: Array.isArray(stored.blockedUrls)
-      ? stored.blockedUrls
-      : DEFAULTS.blockedUrls,
+      : ["news"],
+    blockedUrls: Array.isArray(stored.blockedUrls) ? stored.blockedUrls : [],
     engines:
       typeof stored.engines === "object" && stored.engines
         ? stored.engines
@@ -116,6 +129,7 @@ async function getConfigFresh() {
     maxUrls: Number.isFinite(stored.maxUrls)
       ? stored.maxUrls
       : DEFAULTS.maxUrls,
+    hideVideos: Boolean(stored.hideVideos),
   };
 }
 

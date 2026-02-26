@@ -2,6 +2,7 @@ const ext = globalThis.browser ?? globalThis.chrome;
 
 const DEFAULTS = {
   enabled: true,
+  hideVideos: false,
   behavior: "close",
   blockedTerms: ["news"],
   blockedUrls: [],
@@ -14,6 +15,34 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function storageGet(keys) {
+  try {
+    const r = ext.storage.sync.get(keys);
+    if (r && typeof r.then === "function") return r;
+  } catch {}
+  return new Promise((resolve, reject) => {
+    ext.storage.sync.get(keys, (res) => {
+      const err = ext.runtime?.lastError;
+      if (err) reject(new Error(err.message || String(err)));
+      else resolve(res);
+    });
+  });
+}
+
+function storageSet(items) {
+  try {
+    const r = ext.storage.sync.set(items);
+    if (r && typeof r.then === "function") return r;
+  } catch {}
+  return new Promise((resolve, reject) => {
+    ext.storage.sync.set(items, () => {
+      const err = ext.runtime?.lastError;
+      if (err) reject(new Error(err.message || String(err)));
+      else resolve();
+    });
+  });
+}
+
 function splitList(text) {
   return String(text || "")
     .split(/[\n,]+/g)
@@ -22,9 +51,11 @@ function splitList(text) {
 }
 
 async function load() {
-  const cfg = await ext.storage.sync.get(DEFAULTS);
+  const cfg = await storageGet(DEFAULTS);
 
   $("enabled").checked = Boolean(cfg.enabled);
+  $("hideVideos").checked = Boolean(cfg.hideVideos);
+
   $("terms").value = (cfg.blockedTerms || []).join("\n");
   $("urls").value = (cfg.blockedUrls || []).join("\n");
 
@@ -68,8 +99,9 @@ async function save() {
     brave: $("brave").checked,
   };
 
-  await ext.storage.sync.set({
+  await storageSet({
     enabled: $("enabled").checked,
+    hideVideos: $("hideVideos").checked,
     behavior,
     blockedTerms,
     blockedUrls,

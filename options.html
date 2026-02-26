@@ -45,6 +45,11 @@
       .muted {
         color: #666;
       }
+      .toggle {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
     </style>
   </head>
   <body>
@@ -55,6 +60,17 @@
         <input type="checkbox" id="enabled" />
         Enabled
       </label>
+    </div>
+
+    <div class="row toggle">
+      <label>
+        <input type="checkbox" id="hideVideos" />
+        Hide videos
+      </label>
+      <div class="muted">
+        Replaces video players and embeds with a solid placeholder labeled
+        "video".
+      </div>
     </div>
 
     <fieldset class="row">

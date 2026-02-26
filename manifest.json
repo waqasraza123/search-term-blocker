@@ -1,14 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Search Term Blocker",
-  "version": "1.1.2",
-  "description": "Blocks searches and URLs that match your configured rules.",
+  "version": "1.2.0",
+  "description": "Blocks searches/URLs and optionally hides video players with a placeholder.",
   "permissions": ["storage", "tabs", "webNavigation", "declarativeNetRequest"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "scripts": ["background.js"],
     "service_worker": "service_worker.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
   "options_page": "options.html",
   "web_accessible_resources": [
     {

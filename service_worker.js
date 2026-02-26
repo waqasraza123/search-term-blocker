@@ -2,6 +2,7 @@ const ext = globalThis.browser ?? globalThis.chrome;
 
 const DEFAULTS = Object.freeze({
   enabled: true,
+  hideVideos: false,
   behavior: "close",
   blockedTerms: ["news"],
   blockedUrls: [],
